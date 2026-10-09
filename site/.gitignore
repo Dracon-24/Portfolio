@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.sites-runtime/
+*.tsbuildinfo
+.env*
+
+.wrangler/
+!.env.example
+.dev.vars
+
+.local/

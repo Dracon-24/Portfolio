@@ -1,0 +1,13 @@
+import React from 'react';
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {CodingProfileCard} from '../src/components/CodingProfileCard';
+import {codingProfiles} from '../src/data/codingProfiles';
+import {fallbackProfiles} from '../shared/coding-fallbacks';
+import {cardView,parseDashboard} from '../src/data/codingStatsView';
+import type {PlatformStats} from '../shared/coding-types';
+test('four cards remain visible, including Codolio without statistics',()=>{const html=renderToStaticMarkup(<>{codingProfiles.map((data,i)=><CodingProfileCard key={data.slug} data={data} statistics={fallbackProfiles()[i]}/>)}</>);assert.equal((html.match(/class="coding-card /g)||[]).length,4);assert.match(html,/Codolio/);assert.match(html,/https:\/\/codolio.com\/profile\/dracon24/);assert.match(html,/Live statistics unavailable/)});
+test('fallback, stale, loading, and unavailable values are explicitly rendered',()=>{let p:PlatformStats={...fallbackProfiles()[0],status:'fresh',statistics:{problemsSolved:510},fetchedAt:new Date().toISOString()};const html=renderToStaticMarkup(<CodingProfileCard data={codingProfiles[0]} statistics={p}/>);assert.match(html,/Unavailable/);assert.doesNotMatch(html,/1880|Knight/);assert.equal(cardView(fallbackProfiles()[1]).label,'Highest rating');assert.match(renderToStaticMarkup(<CodingProfileCard data={codingProfiles[1]} statistics={fallbackProfiles()[1]}/>),/Initial snapshot/);p={...p,status:'stale',error:'outage'};assert.match(renderToStaticMarkup(<CodingProfileCard data={codingProfiles[0]} statistics={p}/>),/Last successful update/);assert.match(renderToStaticMarkup(<CodingProfileCard data={codingProfiles[0]} statistics={p} loading/>),/Checking for updates/)});
+test('difficulty accessibility text uses fetched values instead of the original constants',()=>{const p={...fallbackProfiles()[0],statistics:{problemsSolved:510,easySolved:150,mediumSolved:310,hardSolved:50}};const html=renderToStaticMarkup(<CodingProfileCard data={codingProfiles[0]} statistics={p}/>);assert.match(html,/150 easy, 310 medium, 50 hard/);assert.doesNotMatch(html,/84 easy/)});
+test('client rejects responses that omit Codolio or contain invalid statistics',()=>{const response={profiles:fallbackProfiles(),generatedAt:new Date().toISOString(),refreshIntervalSeconds:21600,cacheAvailable:true};assert.equal(parseDashboard(response).profiles.length,4);assert.throws(()=>parseDashboard({...response,profiles:response.profiles.slice(0,3)}));assert.throws(()=>parseDashboard({...response,profiles:response.profiles.map((p,i)=>i? p:{...p,statistics:{problemsSolved:-1}})}))});

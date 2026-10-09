@@ -1,0 +1,13 @@
+import {createServer} from 'node:http';
+import {readFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
+import {resolve,extname} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+import worker from './worker';
+import {sqliteBinding} from './local-d1';
+if(!existsSync('.local/coding-cache.sqlite'))throw new Error('Run npm run db:migrate:local before starting the API.');
+const db=new DatabaseSync('.local/coding-cache.sqlite');
+const root=resolve('dist/client');
+const types:Record<string,string>={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.jpg':'image/jpeg','.png':'image/png','.pdf':'application/pdf'};
+const env={DB:sqliteBinding(db),CODING_STATS_REFRESH_SECONDS:process.env.CODING_STATS_REFRESH_SECONDS,CODING_STATS_TIMEOUT_MS:process.env.CODING_STATS_TIMEOUT_MS,CODING_STATS_RETRY_SECONDS:process.env.CODING_STATS_RETRY_SECONDS,ASSETS:{async fetch(request:Request){const url=new URL(request.url);const file=resolve(root,`.${url.pathname==='/'?'/index.html':decodeURIComponent(url.pathname)}`);if(!file.startsWith(root+'/'))return new Response('Not found',{status:404});try{const bytes=await readFile(file);return new Response(new Uint8Array(bytes),{headers:{'content-type':types[extname(file)]??'application/octet-stream'}})}catch{return new Response('Not found',{status:404})}}}};
+createServer(async(incoming,outgoing)=>{try{const request=new Request(`http://127.0.0.1:8787${incoming.url??'/'}`,{method:incoming.method});const response=await worker.fetch(request,env,{waitUntil(p){void p.catch(()=>console.error('Background refresh failed'))}});outgoing.writeHead(response.status,Object.fromEntries(response.headers));outgoing.end(Buffer.from(await response.arrayBuffer()))}catch{outgoing.writeHead(500);outgoing.end('Local development request failed')}}).listen(8787,'127.0.0.1',()=>console.log('Local Worker handler preview: http://127.0.0.1:8787/'));
