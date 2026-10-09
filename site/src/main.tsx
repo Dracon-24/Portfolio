@@ -12,8 +12,9 @@ import { CodingStatsProvider } from "./context/CodingStatsContext";
 function RouteEffects() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
-    const project = projects.find((p) => pathname === `/projects/${p.slug}`);
-    const isHome = pathname === "/";
+    const routePath = pathname.replace(/\/+$/, "") || "/";
+    const project = projects.find((p) => routePath === `/projects/${p.slug}`);
+    const isHome = routePath === "/";
     document.title = project
       ? `${project.name} | Kumar Manthan`
       : isHome
